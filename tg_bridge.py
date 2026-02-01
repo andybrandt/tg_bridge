@@ -184,7 +184,7 @@ async def main():
         output = {"error": str(e)}
     
     # Final Output for the AI
-    print(json.dumps(output, cls=DateTimeEncoder, indent=2))
+    print(json.dumps(output, cls=DateTimeEncoder, indent=2, ensure_ascii=False))
 
     await client.disconnect()
 
