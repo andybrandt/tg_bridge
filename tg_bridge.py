@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+tg_bridge - Read-only Telegram channel bridge CLI for AI agents.
+
+A tool for AI agents to consume Telegram channel messages with incremental
+sync and media support. All output is JSON for machine parsing.
+"""
 import argparse
 import asyncio
 import json
@@ -8,13 +15,23 @@ from telethon import TelegramClient
 from telethon.utils import get_peer_id
 
 # --- VERSION ---
-VERSION = '0.2'
+VERSION = '0.3'
 
 # --- CONFIGURATION ---
-API_ID = 38516606  # Replace with your API ID
+# User config directory (created automatically if needed)
+CONFIG_DIR = os.path.expanduser('~/.config/tg_bridge')
+SESSION_PATH = os.path.join(CONFIG_DIR, 'session')
+STATE_FILE = os.path.join(CONFIG_DIR, 'channel_state.json')
+
+# Telegram API credentials
+API_ID = 38516606
 API_HASH = '7e22c1f7c6fee703a0a72c8369c5fd46'
-SESSION_NAME = 'ai_agent_session'
-STATE_FILE = 'channel_state.json'
+
+
+def ensure_config_dir():
+    """Create the config directory if it doesn't exist."""
+    if not os.path.exists(CONFIG_DIR):
+        os.makedirs(CONFIG_DIR, mode=0o700)  # Secure permissions
 
 class DateTimeEncoder(json.JSONEncoder):
     """Helper to ensure datetime objects are JSON serializable."""
@@ -23,17 +40,21 @@ class DateTimeEncoder(json.JSONEncoder):
             return o.isoformat()
         return super().default(o)
 
-def load_state():
+def load_state() -> dict:
+    """Load the channel sync state from the state file."""
     if os.path.exists(STATE_FILE):
         try:
-            with open(STATE_FILE, 'r') as f:
+            with open(STATE_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except json.JSONDecodeError:
             return {}
     return {}
 
-def save_state(state):
-    with open(STATE_FILE, 'w') as f:
+
+def save_state(state: dict) -> None:
+    """Save the channel sync state to the state file."""
+    ensure_config_dir()
+    with open(STATE_FILE, 'w', encoding='utf-8') as f:
         json.dump(state, f, indent=2)
 
 def normalize_channel_id(channel_id_value):
@@ -145,8 +166,11 @@ async def main():
 
     args = parser.parse_args()
 
+    # Ensure config directory exists before creating session
+    ensure_config_dir()
+
     # Initialize Client (Read-Only approach: we never call send_message)
-    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+    client = TelegramClient(SESSION_PATH, API_ID, API_HASH)
     await client.start()
 
     output = []

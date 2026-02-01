@@ -10,13 +10,30 @@ A read-only Telegram channel bridge CLI tool designed for AI agents to consume T
 - **Media support** - Extract metadata for photos, videos, audio, and documents
 - **Download attachments** - Fetch media files from specific messages
 - **JSON output** - All output is machine-readable JSON with UTF-8 support
+- **Read-only by design** - Cannot send messages, only read
 
 ## Requirements
 
 - Python 3.13+
+- Telethon library
 - Telegram API credentials (API ID and API Hash from [my.telegram.org](https://my.telegram.org))
 
 ## Installation
+
+### System-wide installation (recommended for AI agents)
+
+This method installs tg_bridge as an immutable system command that AI agents can use but not modify.
+
+```bash
+# Install Telethon system-wide
+sudo pip install telethon
+
+# Install the script
+sudo cp tg_bridge.py /usr/local/bin/tg_bridge
+sudo chmod 755 /usr/local/bin/tg_bridge
+```
+
+### Development installation
 
 ```bash
 # Clone the repository
@@ -33,21 +50,40 @@ pip install telethon
 
 ## Configuration
 
-Edit `tg_bridge.py` and replace the API credentials:
+### API Credentials
+
+Edit the script and replace the API credentials (or fork with your own):
 
 ```python
 API_ID = 12345678          # Your API ID
 API_HASH = 'your_api_hash' # Your API Hash
 ```
 
-On first run, you'll be prompted to authenticate with your phone number. The session is saved to `ai_agent_session.session`.
+### First Run Authentication
+
+**Important:** Before an AI agent can use tg_bridge, you must authenticate manually with your Telegram account. Run any command (e.g., `list`) and complete the interactive login:
+
+```bash
+tg_bridge list
+# Enter your phone number when prompted
+# Enter the verification code sent to your Telegram app
+```
+
+This only needs to be done once. The session persists until you log out from Telegram or delete the session file.
+
+### Data Storage
+
+All user data is stored in `~/.config/tg_bridge/`:
+
+- `session.session` - Telegram authentication session
+- `channel_state.json` - Sync state (last message ID per channel)
 
 ## Usage
 
 ### List available channels
 
 ```bash
-python tg_bridge.py list
+tg_bridge list
 ```
 
 Output:
@@ -62,32 +98,29 @@ Output:
 
 ```bash
 # By channel name/username
-python tg_bridge.py history --channel "Channel Name" --after 2025-01-15T00:00:00 --limit 100
+tg_bridge history --channel "Channel Name" --after 2025-01-15T00:00:00 --limit 100
 
-# By channel ID
-python tg_bridge.py history --channel_id 1001234567890 --after 2025-01-15T00:00:00
+# By channel ID (more reliable)
+tg_bridge history --channel_id 1001234567890 --after 2025-01-15T00:00:00
 ```
 
 ### Sync new messages (incremental)
 
 ```bash
 # First sync fetches recent messages and saves checkpoint
-python tg_bridge.py sync --channel "Channel Name" --limit 50
+tg_bridge sync --channel_id -1001234567890 --limit 50
 
 # Subsequent syncs only return messages newer than last checkpoint
-python tg_bridge.py sync --channel "Channel Name"
+tg_bridge sync --channel_id -1001234567890
 ```
 
-The sync state is persisted in `channel_state.json`.
+The sync state is persisted in `~/.config/tg_bridge/channel_state.json`.
 
 ### Download media attachments
 
 ```bash
 # Download media from a specific message
-python tg_bridge.py download --channel "Channel Name" --message_id 12345 --output ./downloads/
-
-# Using channel ID
-python tg_bridge.py download --channel_id 1001234567890 --message_id 12345 --output ./downloads/
+tg_bridge download --channel_id -1001234567890 --message_id 12345 --output ./downloads/
 ```
 
 ## Output Format
@@ -140,6 +173,28 @@ Errors are returned as:
 ```json
 {"error": "Error description"}
 ```
+
+## OpenClaw Integration
+
+tg_bridge includes a skill file for [OpenClaw](https://openclaw.ai) AI agents.
+
+### Installing the skill
+
+```bash
+mkdir -p ~/.openclaw/skills/tg_bridge
+cp SKILL.md ~/.openclaw/skills/tg_bridge/
+```
+
+The skill provides:
+- Automatic discovery when `tg_bridge` is in PATH
+- Command documentation for the AI agent
+- Workflow guidance for common tasks
+
+### Typical AI agent workflow
+
+1. `tg_bridge list` - Discover available channels
+2. `tg_bridge sync --channel_id <id>` - Poll for new messages
+3. `tg_bridge download ...` - Fetch media when needed
 
 ## License
 
