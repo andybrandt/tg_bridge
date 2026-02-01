@@ -7,6 +7,9 @@ from datetime import datetime
 from telethon import TelegramClient
 from telethon.utils import get_peer_id
 
+# --- VERSION ---
+VERSION = '0.2'
+
 # --- CONFIGURATION ---
 API_ID = 38516606  # Replace with your API ID
 API_HASH = '7e22c1f7c6fee703a0a72c8369c5fd46'
@@ -52,8 +55,66 @@ def get_channel_state_key(entity):
     """
     return str(get_peer_id(entity))
 
+
+def _get_document_type(message) -> str:
+    """
+    Categorize a document message as video, audio, or generic document.
+
+    Args:
+        message: Telethon message object with a document attachment.
+
+    Returns:
+        String indicating the document type: "video", "audio", or "document".
+    """
+    if message.video:
+        return "video"
+    if message.audio:
+        return "audio"
+    return "document"
+
+
+def extract_media_info(message) -> dict | None:
+    """
+    Extract media metadata from a Telegram message.
+
+    Supports photos, documents, videos, and audio files.
+
+    Args:
+        message: Telethon message object.
+
+    Returns:
+        Dictionary with media metadata or None if no supported media present.
+        For photos: {"type": "photo", "file_name": "<id>.jpg", "size": None}
+        For documents: {"type": "document|video|audio", "file_name": ...,
+                        "mime_type": ..., "size": ...}
+    """
+    if message.photo:
+        return {
+            "type": "photo",
+            "file_name": f"{message.id}.jpg",
+            "size": None  # Photos don't expose size directly via simple API
+        }
+    elif message.document:
+        file = message.file
+        return {
+            "type": _get_document_type(message),
+            "file_name": file.name if file and file.name else f"{message.id}",
+            "mime_type": file.mime_type if file else None,
+            "size": file.size if file else None
+        }
+    return None
+
+
 async def main():
-    parser = argparse.ArgumentParser(description="AI Telegram Bridge")
+    parser = argparse.ArgumentParser(
+        description="AI Telegram Bridge",
+        prog="tg_bridge"
+    )
+    parser.add_argument(
+        '-V', '--version',
+        action='version',
+        version=f'%(prog)s {VERSION}'
+    )
     subparsers = parser.add_subparsers(dest='command', required=True)
 
     # 1. List Channels
@@ -73,6 +134,14 @@ async def main():
     sync_channel_group.add_argument('--channel', help="Channel username or name")
     sync_channel_group.add_argument('--channel_id', help="Numeric channel ID (with or without leading '-')")
     sync_parser.add_argument('--limit', type=int, default=50, help="Max messages to retrieve")
+
+    # 4. Download (Fetch media attachment)
+    dl_parser = subparsers.add_parser('download', help="Download media attachment from a message")
+    dl_channel_group = dl_parser.add_mutually_exclusive_group(required=True)
+    dl_channel_group.add_argument('--channel', help="Channel username or name")
+    dl_channel_group.add_argument('--channel_id', help="Numeric channel ID (with or without leading '-')")
+    dl_parser.add_argument('--message_id', type=int, required=True, help="Message ID containing media")
+    dl_parser.add_argument('--output', required=True, help="Output directory for downloaded file")
 
     args = parser.parse_args()
 
@@ -119,13 +188,18 @@ async def main():
             # Simpler approach for AI tool: Fetch N messages and filter in python or use offset_date.
             
             async for message in client.iter_messages(entity, limit=args.limit, offset_date=start_date, reverse=True):
-                if message.text: # Only capture text messages
-                    output.append({
+                # Include messages that have text OR media
+                media_info = extract_media_info(message)
+                if message.text or media_info:
+                    msg_data = {
                         "id": message.id,
                         "date": message.date,
                         "sender": message.sender_id,
-                        "text": message.text
-                    })
+                        "text": message.text  # Will be None if no text
+                    }
+                    if media_info:
+                        msg_data["media"] = media_info
+                    output.append(msg_data)
 
         elif args.command == 'sync':
             # Load state to find last read ID
@@ -162,16 +236,21 @@ async def main():
             
             # min_id param fetches messages NEWER than that ID
             async for message in client.iter_messages(entity, limit=args.limit, min_id=last_id):
-                if message.text:
-                    output.append({
+                # Include messages that have text OR media
+                media_info = extract_media_info(message)
+                if message.text or media_info:
+                    msg_data = {
                         "id": message.id,
                         "date": message.date,
                         "sender": message.sender_id,
-                        "text": message.text
-                    })
-                    # Update max ID seen
-                    if message.id > new_last_id:
-                        new_last_id = message.id
+                        "text": message.text  # Will be None if no text
+                    }
+                    if media_info:
+                        msg_data["media"] = media_info
+                    output.append(msg_data)
+                # Update max ID seen (even for messages without text/media)
+                if message.id > new_last_id:
+                    new_last_id = message.id
             
             # Save new state
             if new_last_id > last_id:
@@ -179,6 +258,45 @@ async def main():
                 state_changed = True
             if state_changed:
                 save_state(state)
+
+        elif args.command == 'download':
+            # Resolve channel identifier
+            if args.channel_id:
+                try:
+                    channel_identifier = normalize_channel_id(args.channel_id)
+                except ValueError as exc:
+                    print(json.dumps({"error": str(exc)}))
+                    return
+            else:
+                channel_identifier = args.channel
+
+            entity = await client.get_entity(channel_identifier)
+
+            # Fetch the specific message by ID
+            message = await client.get_messages(entity, ids=args.message_id)
+
+            if not message:
+                output = {"error": f"Message {args.message_id} not found"}
+            elif not message.media:
+                output = {"error": f"Message {args.message_id} has no media"}
+            else:
+                # Ensure output directory exists
+                os.makedirs(args.output, exist_ok=True)
+
+                # Download - Telethon auto-generates appropriate filename
+                file_path = await client.download_media(message, file=args.output)
+
+                if file_path:
+                    media_info = extract_media_info(message)
+                    output = {
+                        "message_id": args.message_id,
+                        "channel_id": entity.id,
+                        "file_path": os.path.abspath(file_path),
+                        "media_type": media_info["type"] if media_info else "unknown",
+                        "size": os.path.getsize(file_path)
+                    }
+                else:
+                    output = {"error": "Download failed"}
 
     except Exception as e:
         output = {"error": str(e)}

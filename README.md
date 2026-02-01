@@ -7,6 +7,8 @@ A read-only Telegram channel bridge CLI tool designed for AI agents to consume T
 - **List channels** - Enumerate all accessible channels
 - **History query** - Fetch messages after a specific date/time
 - **Incremental sync** - Track last read position per channel for efficient polling
+- **Media support** - Extract metadata for photos, videos, audio, and documents
+- **Download attachments** - Fetch media files from specific messages
 - **JSON output** - All output is machine-readable JSON with UTF-8 support
 
 ## Requirements
@@ -78,6 +80,16 @@ python tg_bridge.py sync --channel "Channel Name"
 
 The sync state is persisted in `channel_state.json`.
 
+### Download media attachments
+
+```bash
+# Download media from a specific message
+python tg_bridge.py download --channel "Channel Name" --message_id 12345 --output ./downloads/
+
+# Using channel ID
+python tg_bridge.py download --channel_id 1001234567890 --message_id 12345 --output ./downloads/
+```
+
 ## Output Format
 
 All commands output JSON. Message objects include:
@@ -88,6 +100,39 @@ All commands output JSON. Message objects include:
   "date": "2025-01-20T14:30:00+00:00",
   "sender": 987654321,
   "text": "Message content here"
+}
+```
+
+Messages with media attachments include a `media` field:
+
+```json
+{
+  "id": 12346,
+  "date": "2025-01-20T14:35:00+00:00",
+  "sender": 987654321,
+  "text": "Check out this document!",
+  "media": {
+    "type": "document",
+    "file_name": "report.pdf",
+    "mime_type": "application/pdf",
+    "size": 1048576
+  }
+}
+```
+
+Supported media types: `photo`, `video`, `audio`, `document`
+
+Messages with only media (no text) are included with `text` as an empty string.
+
+Download command returns:
+
+```json
+{
+  "message_id": 12346,
+  "channel_id": -1001234567890,
+  "file_path": "/absolute/path/to/report.pdf",
+  "media_type": "document",
+  "size": 1048576
 }
 ```
 
