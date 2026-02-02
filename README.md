@@ -50,14 +50,9 @@ pip install telethon
 
 ## Configuration
 
-### API Credentials
+### API ID
 
-Edit the script and replace the API credentials (or fork with your own):
-
-```python
-API_ID = 12345678          # Your API ID
-API_HASH = 'your_api_hash' # Your API Hash
-```
+The API_ID and API_HASH identify the app, not your account. You can leave them as is or relace them. Just please replace them if your fork this by any chance.
 
 ### First Run Authentication
 
@@ -69,7 +64,7 @@ tg_bridge list
 # Enter the verification code sent to your Telegram app
 ```
 
-This only needs to be done once. The session persists until you log out from Telegram or delete the session file.
+This only needs to be done once. The session persists until you log it out from Telegram app or delete the session file.
 
 ### Data Storage
 
