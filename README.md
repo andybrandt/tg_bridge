@@ -22,7 +22,13 @@ A read-only Telegram channel bridge CLI tool designed for AI agents to consume T
 
 ### System-wide installation (recommended for AI agents)
 
-This method installs tg_bridge as an immutable system command that AI agents can use but not modify.
+#### Linux Packages
+
+Binary packages of `tg_bridge` are provided in the main directory in both RPM and DEB format. They contain `tg_bridge` fully compiled to a binary executable (not dependant on Python install!). This binary lands in `/usr/local/bin/`.
+
+#### Python
+
+This method installs tg_bridge Python script  as an immutable system command that AI agents can use but not modify.
 
 ```bash
 # Install Telethon system-wide
