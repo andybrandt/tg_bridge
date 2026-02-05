@@ -1,0 +1,16 @@
+name: "tg_bridge"
+arch: "amd64"
+platform: "linux"
+version: "0.3-1"
+section: "net"
+priority: "extra"
+maintainer: "Andy Brandt <akbrandt@gmail.com>"
+description: "Telegram Bridge CLI"
+vendor: "Andy Brandt"
+homepage: "https://github.com/andybrandt/tg_bridge"
+license: "MIT"
+contents:
+  - src: "./tg_bridge"      # Your local compiled binary
+    dst: "/usr/local/bin/tg_bridge" # Where it goes on the user's system
+  - src: "./doc/tg_bridge.1"  # Man page
+    dst: "/usr/local/man/man1/" # Man location
